@@ -294,42 +294,76 @@ async function handleJoinGame() {
             const hasPlayers = game.players && Object.keys(game.players).length > 0;
             isFirstPlayer = !hasPlayers;
             
-            // Allow joining if game is over (gameover phase or finished status) or if there are no players
-            const isGameOver = game.phase === 'gameover' || game.status === 'finished';
-            
-            // Check if there are any alive players
-            let hasAlivePlayers = false;
-            if (hasPlayers) {
-                const players = game.players || {};
-                hasAlivePlayers = Object.values(players).some(p => p.alive === true);
-            }
-            
-            // Check if game has been stuck for too long (more than 1 hour)
-            const gameAge = game.createdAt ? Date.now() - game.createdAt : 0;
-            const isStuck = gameAge > 60 * 60 * 1000; // 1 hour
-            
-            // Block joining only if game is actively playing AND has alive players AND not stuck
-            if (game.status === 'playing' && !isGameOver && hasAlivePlayers && !isStuck) {
-                alert('A game is currently in progress. Please wait for it to finish.');
-                joinGameBtn.disabled = false;
-                joinGameBtn.textContent = 'Join Game';
-                return;
-            }
-            
-            // Only reset if game is over, stuck, or has no alive players (but NOT if there are players in lobby)
-            // Don't reset if there are players waiting in lobby (status is 'lobby')
-            if (game.status === 'lobby' && hasPlayers) {
-                // Game is in lobby with players - don't reset, just join
-                console.log('Joining existing lobby');
-            } else if (isGameOver || isStuck || (game.status === 'playing' && !hasAlivePlayers)) {
-                // Only reset if game is finished/stuck or has no alive players in a playing game
-                console.log('Resetting game to lobby. Reason:', {
-                    isGameOver,
-                    hasAlivePlayers,
-                    isStuck,
-                    status: game.status
-                });
-                await update(gameRef, {
+            // CRITICAL: NEVER reset if game is in 'lobby' status - players are waiting to play
+            // This is the most important check to prevent clearing existing players
+            if (game.status === 'lobby') {
+                // Game is in lobby - just join, NEVER reset anything
+                console.log('Joining existing lobby with', hasPlayers ? Object.keys(game.players).length : 0, 'players');
+                // Don't do anything else, just proceed to add the player
+            } else if (game.status === 'playing') {
+                // Game is actively playing - check if we can join
+                const isGameOver = game.phase === 'gameover' || game.status === 'finished';
+                
+                // Check if there are any alive players
+                let hasAlivePlayers = false;
+                if (hasPlayers) {
+                    const players = game.players || {};
+                    hasAlivePlayers = Object.values(players).some(p => p.alive === true);
+                }
+                
+                // Block joining if game is actively playing with alive players
+                if (!isGameOver && hasAlivePlayers) {
+                    // Check if game has been stuck for too long (more than 1 hour)
+                    const gameAge = game.createdAt ? Date.now() - game.createdAt : 0;
+                    const isStuck = gameAge > 60 * 60 * 1000; // 1 hour
+                    
+                    if (!isStuck) {
+                        alert('A game is currently in progress. Please wait for it to finish.');
+                        joinGameBtn.disabled = false;
+                        joinGameBtn.textContent = 'Join Game';
+                        return;
+                    }
+                }
+                
+                // Only reset if game is over, stuck, or has no alive players
+                // This should only happen for finished/stuck games
+                if (isGameOver || !hasAlivePlayers) {
+                    const gameAge = game.createdAt ? Date.now() - game.createdAt : 0;
+                    const isStuck = gameAge > 60 * 60 * 1000; // 1 hour
+                    
+                    if (isGameOver || isStuck || !hasAlivePlayers) {
+                        console.log('Resetting finished/stuck game to lobby. Reason:', {
+                            isGameOver,
+                            hasAlivePlayers,
+                            isStuck,
+                            status: game.status
+                        });
+                        // Use set() instead of update() to ensure clean reset
+                        await set(ref(database, `games/${GLOBAL_GAME_ID}`), {
+                            code: GLOBAL_GAME_ID,
+                            status: 'lobby',
+                            phase: 'lobby',
+                            players: {},
+                            god: null,
+                            admin: null,
+                            nightActions: {},
+                            votes: {},
+                            nightStep: 'killer',
+                            detectiveResult: {},
+                            lastNightResult: '',
+                            lastDayResult: '',
+                            winner: null,
+                            createdAt: Date.now()
+                        });
+                        // After reset, this player is now first
+                        isFirstPlayer = true;
+                    }
+                }
+            } else {
+                // Unknown status - treat as finished and reset
+                console.log('Game has unknown status, resetting to lobby');
+                await set(ref(database, `games/${GLOBAL_GAME_ID}`), {
+                    code: GLOBAL_GAME_ID,
                     status: 'lobby',
                     phase: 'lobby',
                     players: {},
@@ -341,9 +375,9 @@ async function handleJoinGame() {
                     detectiveResult: {},
                     lastNightResult: '',
                     lastDayResult: '',
-                    winner: null
+                    winner: null,
+                    createdAt: Date.now()
                 });
-                // After reset, this player is now first
                 isFirstPlayer = true;
             }
         }
@@ -362,7 +396,16 @@ async function handleJoinGame() {
             console.log('You are the admin!');
         }
         
+        // Double-check we're not in a lobby before adding player (safety check)
+        const finalCheck = await get(gameRef);
+        const finalGame = finalCheck.val();
+        if (finalGame && finalGame.status === 'lobby' && finalGame.players) {
+            const existingPlayerCount = Object.keys(finalGame.players).length;
+            console.log('Adding player:', playerName, 'with ID:', currentPlayerId, 'to lobby with', existingPlayerCount, 'existing players');
+        }
+        
         console.log('Adding player:', playerName, 'with ID:', currentPlayerId);
+        // Use set() to add player - this only sets this specific player, doesn't affect others
         await set(ref(database, `games/${GLOBAL_GAME_ID}/players/${currentPlayerId}`), {
             name: playerName,
             ready: false,
