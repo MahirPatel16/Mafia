@@ -1,0 +1,389 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.container {
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-width: 800px;
+    width: 100%;
+    padding: 40px;
+    position: relative;
+}
+
+.screen {
+    display: none;
+}
+
+.screen.active {
+    display: block;
+}
+
+h1 {
+    color: #333;
+    text-align: center;
+    margin-bottom: 30px;
+    font-size: 2.5em;
+}
+
+h2 {
+    color: #555;
+    margin-bottom: 20px;
+    font-size: 1.8em;
+}
+
+h3 {
+    color: #666;
+    margin-bottom: 15px;
+    font-size: 1.3em;
+}
+
+/* Welcome Screen */
+.welcome-content {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+#playerName {
+    padding: 15px;
+    font-size: 16px;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+#playerName:focus {
+    border-color: #667eea;
+}
+
+.game-code {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f0f0f0;
+    border-radius: 10px;
+    text-align: center;
+}
+
+/* Buttons */
+.btn {
+    padding: 12px 24px;
+    font-size: 16px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-weight: 600;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+}
+
+.btn-danger {
+    background: #dc3545;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Lobby */
+.game-info {
+    text-align: center;
+    margin-bottom: 30px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 10px;
+}
+
+.players-list {
+    margin-bottom: 30px;
+}
+
+.player-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    margin-bottom: 10px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    border-left: 4px solid #667eea;
+}
+
+.player-item.ready {
+    border-left-color: #28a745;
+    background: #d4edda;
+}
+
+.player-name {
+    font-weight: 600;
+    color: #333;
+}
+
+.player-status {
+    color: #666;
+    font-size: 14px;
+}
+
+.waiting-message {
+    text-align: center;
+    padding: 15px;
+    background: #fff3cd;
+    border-radius: 10px;
+    color: #856404;
+    margin-top: 20px;
+}
+
+.lobby-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+/* Game Screen */
+.game-header {
+    text-align: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #eee;
+}
+
+.game-phase {
+    font-size: 1.2em;
+    color: #667eea;
+    font-weight: 600;
+    margin-top: 10px;
+}
+
+.role-display {
+    text-align: center;
+    padding: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+#playerRole {
+    font-size: 1.5em;
+    text-transform: uppercase;
+    display: block;
+    margin-top: 10px;
+}
+
+#roleDescription {
+    margin-top: 10px;
+    opacity: 0.9;
+}
+
+/* God View */
+.god-view {
+    background: #fff3cd;
+    border: 3px solid #ffc107;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 30px;
+}
+
+.god-view h2 {
+    color: #856404;
+    text-align: center;
+}
+
+.god-info {
+    margin-bottom: 20px;
+}
+
+.god-info-item {
+    padding: 10px;
+    margin-bottom: 10px;
+    background: white;
+    border-radius: 5px;
+    border-left: 4px solid #ffc107;
+}
+
+/* Phase Containers */
+.phase-container {
+    margin-bottom: 30px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 10px;
+}
+
+.actions-container {
+    margin-bottom: 20px;
+}
+
+.action-item {
+    padding: 15px;
+    margin-bottom: 10px;
+    background: white;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s;
+    border: 2px solid transparent;
+}
+
+.action-item:hover {
+    border-color: #667eea;
+    transform: translateX(5px);
+}
+
+.action-item.selected {
+    border-color: #667eea;
+    background: #e7f0ff;
+}
+
+.action-item:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.day-results {
+    padding: 15px;
+    background: white;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+
+.voting-section {
+    margin-top: 20px;
+}
+
+.vote-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.vote-option {
+    padding: 15px;
+    background: white;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.3s;
+}
+
+.vote-option:hover {
+    border-color: #667eea;
+    transform: scale(1.05);
+}
+
+.vote-option.selected {
+    border-color: #dc3545;
+    background: #f8d7da;
+}
+
+.vote-option:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Players Status */
+.players-status {
+    margin-top: 30px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 10px;
+}
+
+.players-status h3 {
+    margin-bottom: 15px;
+}
+
+.status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+}
+
+.status-player {
+    padding: 10px;
+    background: white;
+    border-radius: 8px;
+    text-align: center;
+    border: 2px solid #ddd;
+}
+
+.status-player.alive {
+    border-color: #28a745;
+}
+
+.status-player.dead {
+    border-color: #dc3545;
+    opacity: 0.6;
+    text-decoration: line-through;
+}
+
+/* Game Over */
+.game-over {
+    text-align: center;
+    padding: 30px;
+    background: #f8f9fa;
+    border-radius: 10px;
+}
+
+#gameResult {
+    margin: 20px 0;
+    padding: 20px;
+    background: white;
+    border-radius: 10px;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .container {
+        padding: 20px;
+    }
+
+    h1 {
+        font-size: 2em;
+    }
+
+    .vote-options {
+        grid-template-columns: 1fr;
+    }
+}
+

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mafia Game - God's Controller</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Welcome Screen -->
+        <div id="welcomeScreen" class="screen active">
+            <h1>🎭 Mafia Game</h1>
+            <div class="welcome-content">
+                <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
+                <button id="joinGameBtn" class="btn btn-primary">Join Game</button>
+            </div>
+            <div id="gameCodeDisplay" class="game-code" style="display: none;">
+                <p>Game Code: <strong id="gameCode"></strong></p>
+                <button id="copyCodeBtn" class="btn btn-secondary">Copy Code</button>
+            </div>
+        </div>
+
+        <!-- Lobby Screen -->
+        <div id="lobbyScreen" class="screen">
+            <h1>Game Lobby</h1>
+            <div class="game-info">
+                <p>Game Code: <strong id="lobbyGameCode"></strong></p>
+                <p>Players: <span id="playerCount">0</span>/10</p>
+            </div>
+            <div id="playersList" class="players-list"></div>
+            <div class="lobby-actions">
+                <button id="readyBtn" class="btn btn-primary">Ready</button>
+                <button id="leaveGameBtn" class="btn btn-danger">Leave Game</button>
+            </div>
+            <div id="waitingMessage" class="waiting-message"></div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="gameScreen" class="screen">
+            <div class="game-header">
+                <h1>Mafia Game</h1>
+                <div class="game-phase">Phase: <span id="currentPhase"></span></div>
+            </div>
+
+            <!-- Role Display (shown only to player) -->
+            <div id="roleDisplay" class="role-display">
+                <h2>Your Role: <span id="playerRole"></span></h2>
+                <p id="roleDescription"></p>
+            </div>
+
+            <!-- God View (only for god) -->
+            <div id="godView" class="god-view" style="display: none;">
+                <h2>👑 God's View</h2>
+                <div id="godInfo" class="god-info"></div>
+                <div id="godActions" class="god-actions"></div>
+            </div>
+
+            <!-- Night Phase -->
+            <div id="nightPhase" class="phase-container" style="display: none;">
+                <h2>🌙 Night Phase</h2>
+                <div id="nightActions" class="actions-container"></div>
+                <button id="submitNightActionBtn" class="btn btn-primary" style="display: none;">Submit Action</button>
+            </div>
+
+            <!-- Day Phase -->
+            <div id="dayPhase" class="phase-container" style="display: none;">
+                <h2>☀️ Day Phase</h2>
+                <div id="dayResults" class="day-results"></div>
+                <div id="votingSection" class="voting-section">
+                    <h3>Vote to Eliminate</h3>
+                    <div id="voteOptions" class="vote-options"></div>
+                    <button id="submitVoteBtn" class="btn btn-primary" style="display: none;">Submit Vote</button>
+                </div>
+            </div>
+
+            <!-- Game Over -->
+            <div id="gameOver" class="game-over" style="display: none;">
+                <h2>Game Over</h2>
+                <div id="gameResult"></div>
+                <button id="newGameBtn" class="btn btn-primary">New Game</button>
+            </div>
+
+            <!-- Players Status -->
+            <div id="playersStatus" class="players-status"></div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module" src="firebase-config.js"></script>
+    <script type="module" src="app.js"></script>
+</body>
+</html>
+
