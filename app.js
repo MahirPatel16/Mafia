@@ -13,6 +13,7 @@ const welcomeScreen = document.getElementById('welcomeScreen');
 const lobbyScreen = document.getElementById('lobbyScreen');
 const gameScreen = document.getElementById('gameScreen');
 const playerNameInput = document.getElementById('playerName');
+const gameCodeInput = document.getElementById('gameCodeInput');
 const joinGameBtn = document.getElementById('joinGameBtn');
 const gameCodeDisplay = document.getElementById('gameCodeDisplay');
 const gameCodeSpan = document.getElementById('gameCode');
@@ -55,13 +56,19 @@ function init() {
     }
     console.log('Firebase connected successfully');
 
-    // Check if URL has game code
+    // Check if URL has game code and populate input
     const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    if (code) {
-        gameCodeSpan.textContent = code;
+    const urlCode = urlParams.get('code');
+    if (urlCode) {
+        gameCodeInput.value = urlCode.toUpperCase();
+        gameCodeSpan.textContent = urlCode.toUpperCase();
         gameCodeDisplay.style.display = 'block';
     }
+    
+    // Auto-uppercase game code input
+    gameCodeInput.addEventListener('input', (e) => {
+        e.target.value = e.target.value.toUpperCase();
+    });
 
     // Event listeners
     joinGameBtn.addEventListener('click', handleJoinGame);
@@ -73,6 +80,12 @@ function init() {
     newGameBtn.addEventListener('click', resetGame);
 
     playerNameInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            handleJoinGame();
+        }
+    });
+    
+    gameCodeInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             handleJoinGame();
         }
@@ -100,7 +113,12 @@ async function handleJoinGame() {
         joinGameBtn.textContent = 'Joining...';
 
         playerName = name;
-        let code = new URLSearchParams(window.location.search).get('code');
+        
+        // Get code from input field first, then URL parameter, then create new
+        let code = gameCodeInput.value.trim().toUpperCase();
+        if (!code) {
+            code = new URLSearchParams(window.location.search).get('code');
+        }
 
         if (!code) {
             // Create new game
@@ -123,13 +141,35 @@ async function handleJoinGame() {
             // Update URL
             window.history.pushState({}, '', `?code=${code}`);
             gameCodeSpan.textContent = code;
+            gameCodeInput.value = code; // Also update the input field
             gameCodeDisplay.style.display = 'block';
         } else {
-            // Join existing game
+            // Join existing game - verify it exists first
             gameId = code;
+            const gameRef = ref(database, `games/${code}`);
+            const snapshot = await get(gameRef);
+            
+            if (!snapshot.exists()) {
+                alert(`Game code "${code}" not found. Please check the code or create a new game.`);
+                joinGameBtn.disabled = false;
+                joinGameBtn.textContent = 'Join Game';
+                return;
+            }
+            
+            const game = snapshot.val();
+            if (game.status === 'playing') {
+                alert('This game has already started. Please wait for it to finish or create a new game.');
+                joinGameBtn.disabled = false;
+                joinGameBtn.textContent = 'Join Game';
+                return;
+            }
+            
             const playersRef = ref(database, `games/${code}/players`);
             currentPlayerId = push(playersRef).key;
             console.log('Joining existing game:', code);
+            
+            // Update URL with game code
+            window.history.pushState({}, '', `?code=${code}`);
         }
 
         // Add player
@@ -742,8 +782,21 @@ function showScreen(screenName) {
 // Copy game code
 function copyGameCode() {
     const code = gameCodeSpan.textContent;
-    navigator.clipboard.writeText(code).then(() => {
-        alert('Game code copied!');
+    const fullUrl = window.location.origin + window.location.pathname + `?code=${code}`;
+    
+    // Try to copy the full URL with code, fallback to just code
+    navigator.clipboard.writeText(fullUrl).then(() => {
+        copyCodeBtn.textContent = '✓ Copied!';
+        copyCodeBtn.style.background = '#28a745';
+        setTimeout(() => {
+            copyCodeBtn.textContent = 'Copy Code';
+            copyCodeBtn.style.background = '';
+        }, 2000);
+    }).catch(() => {
+        // Fallback: copy just the code
+        navigator.clipboard.writeText(code).then(() => {
+            alert('Game code copied: ' + code);
+        });
     });
 }
 
