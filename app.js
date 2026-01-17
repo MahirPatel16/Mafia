@@ -246,11 +246,33 @@ async function handleJoinGame() {
             console.log('Created global game');
         } else {
             const game = snapshot.val();
-            if (game.status === 'playing') {
+            // Allow joining if game is over (gameover phase or finished status) or if there are no players
+            const hasPlayers = game.players && Object.keys(game.players).length > 0;
+            const isGameOver = game.phase === 'gameover' || game.status === 'finished';
+            
+            if (game.status === 'playing' && !isGameOver && hasPlayers) {
                 alert('A game is currently in progress. Please wait for it to finish.');
                 joinGameBtn.disabled = false;
                 joinGameBtn.textContent = 'Join Game';
                 return;
+            }
+            
+            // If game is over or has no players, reset it to lobby
+            if (isGameOver || (game.status === 'playing' && !hasPlayers)) {
+                await update(gameRef, {
+                    status: 'lobby',
+                    phase: 'lobby',
+                    players: {},
+                    god: null,
+                    admin: null,
+                    nightActions: {},
+                    votes: {},
+                    nightStep: 'killer',
+                    detectiveResult: {},
+                    lastNightResult: '',
+                    lastDayResult: '',
+                    winner: null
+                });
             }
         }
         
@@ -828,9 +850,11 @@ async function processNight(game) {
     
     if (aliveKillers.length === 0) {
         updates[`games/${GLOBAL_GAME_ID}/phase`] = 'gameover';
+        updates[`games/${GLOBAL_GAME_ID}/status`] = 'finished';
         updates[`games/${GLOBAL_GAME_ID}/winner`] = 'Villagers';
     } else if (aliveKillers.length >= aliveVillagers.length) {
         updates[`games/${GLOBAL_GAME_ID}/phase`] = 'gameover';
+        updates[`games/${GLOBAL_GAME_ID}/status`] = 'finished';
         updates[`games/${GLOBAL_GAME_ID}/winner`] = 'Killer';
     } else {
         // Move to day phase
@@ -995,9 +1019,11 @@ async function processVoting(game) {
     
     if (aliveKillers.length === 0) {
         updates[`games/${GLOBAL_GAME_ID}/phase`] = 'gameover';
+        updates[`games/${GLOBAL_GAME_ID}/status`] = 'finished';
         updates[`games/${GLOBAL_GAME_ID}/winner`] = 'Villagers';
     } else if (aliveKillers.length >= aliveVillagers.length) {
         updates[`games/${GLOBAL_GAME_ID}/phase`] = 'gameover';
+        updates[`games/${GLOBAL_GAME_ID}/status`] = 'finished';
         updates[`games/${GLOBAL_GAME_ID}/winner`] = 'Killer';
     } else {
         // Move to next night
