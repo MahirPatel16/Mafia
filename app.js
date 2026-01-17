@@ -7,6 +7,7 @@ const GLOBAL_GAME_ID = 'global'; // Single global game
 let playerName = '';
 let playerRole = '';
 let isGod = false;
+let isAdmin = false;
 
 // DOM elements
 const welcomeScreen = document.getElementById('welcomeScreen');
@@ -38,9 +39,13 @@ const gameOver = document.getElementById('gameOver');
 const gameResult = document.getElementById('gameResult');
 const newGameBtn = document.getElementById('newGameBtn');
 const playersStatus = document.getElementById('playersStatus');
+const adminPanel = document.getElementById('adminPanel');
+const killerCountInput = document.getElementById('killerCount');
+const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+const backgroundMusic = document.getElementById('backgroundMusic');
 
 // Initialize
-function init() {
+async function init() {
     console.log('Initializing Mafia Game...');
     
     // Check if Firebase is connected
@@ -51,6 +56,33 @@ function init() {
     }
     console.log('Firebase connected successfully');
 
+    // Verify all required DOM elements exist
+    if (!joinGameBtn || !readyBtn || !leaveGameBtn || !submitNightActionBtn || !submitVoteBtn || !newGameBtn || !playerNameInput) {
+        console.error('Some DOM elements are missing!');
+        alert('Page not loaded correctly. Please refresh the page.');
+        return;
+    }
+
+    // Set up event listeners (always needed)
+    setupEventListeners();
+    
+    // Check for saved session
+    const savedSession = getSavedSession();
+    if (savedSession) {
+        console.log('Found saved session, attempting to restore...');
+        const restored = await restoreSession(savedSession);
+        if (restored) {
+            console.log('Session restored successfully');
+            return;
+        } else {
+            console.log('Could not restore session, clearing saved data');
+            clearSavedSession();
+        }
+    }
+}
+
+// Setup event listeners
+function setupEventListeners() {
     // Event listeners
     joinGameBtn.addEventListener('click', handleJoinGame);
     readyBtn.addEventListener('click', toggleReady);
@@ -58,6 +90,14 @@ function init() {
     submitNightActionBtn.addEventListener('click', submitNightAction);
     submitVoteBtn.addEventListener('click', submitVote);
     newGameBtn.addEventListener('click', resetGame);
+    if (saveSettingsBtn) {
+        saveSettingsBtn.addEventListener('click', saveAdminSettings);
+    }
+    
+    // Music controls - start music when game starts
+    if (backgroundMusic) {
+        backgroundMusic.volume = 0.3; // Set volume to 30%
+    }
 
     playerNameInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
@@ -65,7 +105,97 @@ function init() {
         }
     });
     
-    console.log('Initialization complete');
+    console.log('Event listeners set up');
+}
+
+// Save session to localStorage
+function saveSession() {
+    const session = {
+        playerId: currentPlayerId,
+        playerName: playerName,
+        timestamp: Date.now()
+    };
+    localStorage.setItem('mafia_game_session', JSON.stringify(session));
+    console.log('Session saved to localStorage');
+}
+
+// Get saved session from localStorage
+function getSavedSession() {
+    try {
+        const saved = localStorage.getItem('mafia_game_session');
+        if (!saved) return null;
+        
+        const session = JSON.parse(saved);
+        // Check if session is not too old (24 hours)
+        const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+        if (Date.now() - session.timestamp > maxAge) {
+            localStorage.removeItem('mafia_game_session');
+            return null;
+        }
+        return session;
+    } catch (e) {
+        console.error('Error reading saved session:', e);
+        return null;
+    }
+}
+
+// Clear saved session
+function clearSavedSession() {
+    localStorage.removeItem('mafia_game_session');
+    console.log('Session cleared from localStorage');
+}
+
+// Restore session from localStorage
+async function restoreSession(savedSession) {
+    try {
+        currentPlayerId = savedSession.playerId;
+        playerName = savedSession.playerName;
+        
+        // Check if player still exists in Firebase
+        const playerRef = ref(database, `games/${GLOBAL_GAME_ID}/players/${currentPlayerId}`);
+        const playerSnapshot = await get(playerRef);
+        
+        if (!playerSnapshot.exists()) {
+            console.log('Player no longer exists in game');
+            return false;
+        }
+        
+        const gameRef = ref(database, `games/${GLOBAL_GAME_ID}`);
+        const gameSnapshot = await get(gameRef);
+        
+        if (!gameSnapshot.exists()) {
+            console.log('Game no longer exists');
+            return false;
+        }
+        
+        const game = gameSnapshot.val();
+        
+        // Check if player is admin
+        isAdmin = game.admin === currentPlayerId;
+        
+        // Update player name input (hidden but useful for reference)
+        if (playerNameInput) {
+            playerNameInput.value = playerName;
+        }
+        
+        // Listen to game changes
+        listenToGame();
+        
+        // Show appropriate screen based on game status
+        if (game.status === 'playing') {
+            showScreen('game');
+            updateGame(game);
+        } else {
+            showScreen('lobby');
+            // Update lobby to show admin panel if needed
+            updateLobby(game);
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('Error restoring session:', error);
+        return false;
+    }
 }
 
 // Join global game
@@ -114,6 +244,20 @@ async function handleJoinGame() {
         const playersRef = ref(database, `games/${GLOBAL_GAME_ID}/players`);
         currentPlayerId = push(playersRef).key;
         
+        // Check if this is the first player (should be admin)
+        const gameSnapshot = await get(gameRef);
+        const gameData = gameSnapshot.val();
+        const isFirstPlayer = !gameData || Object.keys(gameData.players || {}).length === 0;
+        
+        if (isFirstPlayer) {
+            // First player becomes admin
+            await update(gameRef, {
+                admin: currentPlayerId
+            });
+            isAdmin = true;
+            console.log('You are the admin!');
+        }
+        
         console.log('Adding player:', playerName, 'with ID:', currentPlayerId);
         await set(ref(database, `games/${GLOBAL_GAME_ID}/players/${currentPlayerId}`), {
             name: playerName,
@@ -123,6 +267,9 @@ async function handleJoinGame() {
             voted: false,
             voteTarget: null
         });
+
+        // Save session to localStorage
+        saveSession();
 
         // Listen to game changes
         listenToGame();
@@ -171,6 +318,17 @@ function updateLobby(game) {
     const players = game.players || {};
     const playerArray = Object.entries(players);
     
+    // Check if current player is admin
+    isAdmin = game.admin === currentPlayerId;
+    
+    // Show/hide admin panel
+    if (adminPanel) {
+        adminPanel.style.display = isAdmin ? 'block' : 'none';
+        if (isAdmin && killerCountInput && game.settings) {
+            killerCountInput.value = game.settings.killerCount || 1;
+        }
+    }
+    
     playerCount.textContent = playerArray.length;
     
     // Update players list
@@ -217,9 +375,26 @@ async function startGame(game) {
         return;
     }
 
+    // Get settings
+    const killerCount = (game.settings && game.settings.killerCount) || 1;
+    const minPlayers = killerCount + 2; // At least killers + doctor + detective
+    
+    if (players.length < minPlayers) {
+        alert(`Game requires at least ${minPlayers} players for ${killerCount} killer(s)`);
+        return;
+    }
+
     // Assign roles
-    const roles = assignRoles(players.length);
+    const roles = assignRoles(players.length, killerCount);
     const shuffledRoles = shuffleArray([...roles]);
+    
+    // Start background music
+    if (backgroundMusic) {
+        backgroundMusic.play().catch(e => {
+            console.log('Could not play background music:', e);
+            // Music autoplay might be blocked by browser
+        });
+    }
     
     // Assign god (random player)
     const godId = players[Math.floor(Math.random() * players.length)][0];
@@ -244,11 +419,21 @@ async function startGame(game) {
     await update(ref(database), updates);
 }
 
-// Assign roles based on player count
-function assignRoles(count) {
-    const roles = ['Killer', 'Doctor', 'Detective'];
-    const villagers = count - 3;
+// Assign roles based on player count and settings
+function assignRoles(count, killerCount = 1) {
+    const roles = [];
     
+    // Add killers based on settings
+    for (let i = 0; i < killerCount; i++) {
+        roles.push('Killer');
+    }
+    
+    // Always have 1 Doctor and 1 Detective
+    roles.push('Doctor');
+    roles.push('Detective');
+    
+    // Fill rest with villagers
+    const villagers = count - killerCount - 2; // -2 for Doctor and Detective
     for (let i = 0; i < villagers; i++) {
         roles.push('Villager');
     }
@@ -718,19 +903,82 @@ function showScreen(screenName) {
     else if (screenName === 'game') gameScreen.classList.add('active');
 }
 
+// Save admin settings
+async function saveAdminSettings() {
+    if (!isAdmin) return;
+    
+    const killerCount = parseInt(killerCountInput.value) || 1;
+    if (killerCount < 1 || killerCount > 3) {
+        alert('Number of killers must be between 1 and 3');
+        return;
+    }
+    
+    try {
+        await update(ref(database, `games/${GLOBAL_GAME_ID}/settings`), {
+            killerCount: killerCount
+        });
+        
+        saveSettingsBtn.textContent = '✓ Saved!';
+        saveSettingsBtn.style.background = '#28a745';
+        setTimeout(() => {
+            saveSettingsBtn.textContent = 'Save Settings';
+            saveSettingsBtn.style.background = '';
+        }, 2000);
+    } catch (error) {
+        console.error('Error saving settings:', error);
+        alert('Error saving settings');
+    }
+}
+
 // Leave game
 async function leaveGame() {
+    // Stop music
+    if (backgroundMusic) {
+        backgroundMusic.pause();
+        backgroundMusic.currentTime = 0;
+    }
+    
+    // Clear saved session
+    clearSavedSession();
+    
     if (currentPlayerId && GLOBAL_GAME_ID) {
         await remove(ref(database, `games/${GLOBAL_GAME_ID}/players/${currentPlayerId}`));
     }
+    
+    // Reset state
+    currentPlayerId = null;
+    playerName = '';
+    isAdmin = false;
+    isGod = false;
+    
     window.location.href = window.location.pathname;
 }
 
 // Reset game
 function resetGame() {
+    // Stop music
+    if (backgroundMusic) {
+        backgroundMusic.pause();
+        backgroundMusic.currentTime = 0;
+    }
+    
+    // Clear saved session
+    clearSavedSession();
+    
+    // Reset state
+    currentPlayerId = null;
+    playerName = '';
+    isAdmin = false;
+    isGod = false;
+    
     window.location.href = window.location.pathname;
 }
 
-// Initialize on load
-init();
+// Initialize on load - wait for DOM to be ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    // DOM is already ready
+    init();
+}
 

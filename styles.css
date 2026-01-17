@@ -173,6 +173,48 @@ h3 {
     margin-top: 20px;
 }
 
+/* Admin Panel */
+.admin-panel {
+    margin: 20px 0;
+    padding: 20px;
+    background: #e7f3ff;
+    border: 2px solid #667eea;
+    border-radius: 10px;
+}
+
+.admin-panel h3 {
+    color: #667eea;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.admin-setting {
+    margin-bottom: 15px;
+}
+
+.admin-setting label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    color: #333;
+}
+
+.admin-setting input[type="number"] {
+    width: 100%;
+    padding: 10px;
+    font-size: 16px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 5px;
+}
+
+.admin-setting small {
+    display: block;
+    color: #666;
+    font-size: 12px;
+    margin-top: 5px;
+}
+
 .lobby-actions {
     display: flex;
     gap: 10px;
