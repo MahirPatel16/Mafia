@@ -93,6 +93,12 @@ async function init() {
 function setupEventListeners() {
     // Event listeners
     joinGameBtn.addEventListener('click', handleJoinGame);
+    if (forceResetBtn) {
+        forceResetBtn.addEventListener('click', forceResetGame);
+    }
+    if (forceResetBtn) {
+        forceResetBtn.addEventListener('click', forceResetGame);
+    }
     readyBtn.addEventListener('click', toggleReady);
     leaveGameBtn.addEventListener('click', leaveGame);
     submitNightActionBtn.addEventListener('click', submitNightAction);
@@ -212,6 +218,35 @@ async function restoreSession(savedSession) {
     }
 }
 
+// Force reset stuck game
+async function forceResetGame() {
+    if (!confirm('This will reset the game. Are you sure?')) {
+        return;
+    }
+    
+    try {
+        const gameRef = ref(database, `games/${GLOBAL_GAME_ID}`);
+        await update(gameRef, {
+            status: 'lobby',
+            phase: 'lobby',
+            players: {},
+            god: null,
+            admin: null,
+            nightActions: {},
+            votes: {},
+            nightStep: 'killer',
+            detectiveResult: {},
+            lastNightResult: '',
+            lastDayResult: '',
+            winner: null
+        });
+        alert('Game reset! You can now join.');
+    } catch (error) {
+        console.error('Error resetting game:', error);
+        alert('Error resetting game: ' + error.message);
+    }
+}
+
 // Join global game
 async function handleJoinGame() {
     try {
@@ -250,15 +285,33 @@ async function handleJoinGame() {
             const hasPlayers = game.players && Object.keys(game.players).length > 0;
             const isGameOver = game.phase === 'gameover' || game.status === 'finished';
             
-            if (game.status === 'playing' && !isGameOver && hasPlayers) {
+            // Check if there are any alive players
+            let hasAlivePlayers = false;
+            if (hasPlayers) {
+                const players = game.players || {};
+                hasAlivePlayers = Object.values(players).some(p => p.alive === true);
+            }
+            
+            // Check if game has been stuck for too long (more than 1 hour)
+            const gameAge = game.createdAt ? Date.now() - game.createdAt : 0;
+            const isStuck = gameAge > 60 * 60 * 1000; // 1 hour
+            
+            // Block joining only if game is actively playing AND has alive players AND not stuck
+            if (game.status === 'playing' && !isGameOver && hasAlivePlayers && !isStuck) {
                 alert('A game is currently in progress. Please wait for it to finish.');
                 joinGameBtn.disabled = false;
                 joinGameBtn.textContent = 'Join Game';
                 return;
             }
             
-            // If game is over or has no players, reset it to lobby
-            if (isGameOver || (game.status === 'playing' && !hasPlayers)) {
+            // If game is over, has no alive players, is stuck, or has no players, reset it to lobby
+            if (isGameOver || !hasAlivePlayers || isStuck || !hasPlayers) {
+                console.log('Resetting game to lobby. Reason:', {
+                    isGameOver,
+                    hasAlivePlayers,
+                    isStuck,
+                    hasPlayers
+                });
                 await update(gameRef, {
                     status: 'lobby',
                     phase: 'lobby',
