@@ -48,9 +48,15 @@ const skipVoteBtn = document.getElementById('skipVoteBtn');
 const godViewGameOver = document.getElementById('godViewGameOver');
 const godInfoGameOver = document.getElementById('godInfoGameOver');
 const homeBtn = document.getElementById('homeBtn');
-const soundKiller = document.getElementById('soundKiller');
-const soundHealer = document.getElementById('soundHealer');
-const soundDetective = document.getElementById('soundDetective');
+const soundEveryoneClose = document.getElementById('soundEveryoneClose');
+const soundKillerOpen = document.getElementById('soundKillerOpen');
+const soundKillerClose = document.getElementById('soundKillerClose');
+const soundHealerOpen = document.getElementById('soundHealerOpen');
+const soundHealerClose = document.getElementById('soundHealerClose');
+const soundDetectiveOpen = document.getElementById('soundDetectiveOpen');
+const soundDetectiveClose = document.getElementById('soundDetectiveClose');
+const soundEveryoneOpen = document.getElementById('soundEveryoneOpen');
+const actionTimeInput = document.getElementById('actionTime');
 
 // Initialize
 async function init() {
@@ -413,8 +419,13 @@ function updateLobby(game) {
     // Show/hide admin panel
     if (adminPanel) {
         adminPanel.style.display = isAdmin ? 'block' : 'none';
-        if (isAdmin && killerCountInput && game.settings) {
-            killerCountInput.value = game.settings.killerCount || 1;
+        if (isAdmin && game.settings) {
+            if (killerCountInput) {
+                killerCountInput.value = game.settings.killerCount || 1;
+            }
+            if (actionTimeInput) {
+                actionTimeInput.value = game.settings.actionTime || 10;
+            }
         }
     }
     
@@ -504,10 +515,21 @@ async function startGame(game) {
     updates[`games/${GLOBAL_GAME_ID}/votes`] = {};
     updates[`games/${GLOBAL_GAME_ID}/lastNightResult`] = '';
     updates[`games/${GLOBAL_GAME_ID}/lastDayResult`] = '';
-    updates[`games/${GLOBAL_GAME_ID}/nightStep`] = 'killer'; // Sequential steps: killer -> healer -> detective -> complete
+    updates[`games/${GLOBAL_GAME_ID}/nightStep`] = 'everyone-close'; // Start with everyone closing eyes
+    updates[`games/${GLOBAL_GAME_ID}/nightStepStartTime`] = Date.now(); // Track when step started
     updates[`games/${GLOBAL_GAME_ID}/detectiveResult`] = {}; // Store detective results per player
 
     await update(ref(database), updates);
+    
+    // Play everyone close eyes sound and start sequence
+    if (soundEveryoneClose) {
+        soundEveryoneClose.play().catch(e => console.log('Sound play failed:', e));
+    }
+    
+    // After 5 seconds, move to killer open
+    setTimeout(() => {
+        advanceNightStep('killer-open');
+    }, 5000);
 }
 
 // Assign roles based on player count and settings
@@ -552,9 +574,14 @@ function updateGame(game) {
     playerRole = currentPlayer.role || '';
     isGod = game.god === currentPlayerId;
     
-    // Update role display
-    playerRoleSpan.textContent = playerRole;
-    roleDescription.textContent = getRoleDescription(playerRole);
+    // Update role display - hide during day phase for uniform screen
+    if (game.phase === 'day') {
+        roleDisplay.style.display = 'none';
+    } else {
+        roleDisplay.style.display = 'block';
+        playerRoleSpan.textContent = playerRole;
+        roleDescription.textContent = getRoleDescription(playerRole);
+    }
     
     // Hide god view during game (will show after game over)
     godView.style.display = 'none';
@@ -614,14 +641,25 @@ function updateGodView(game) {
     }
 }
 
-// Show night phase with sequential actions
+// Advance night step
+async function advanceNightStep(nextStep) {
+    const gameRef = ref(database, `games/${GLOBAL_GAME_ID}`);
+    await update(gameRef, {
+        nightStep: nextStep,
+        nightStepStartTime: Date.now()
+    });
+}
+
+// Show night phase with timed sequential actions
 function showNightPhase(game) {
     nightPhase.style.display = 'block';
     dayPhase.style.display = 'none';
     
     const players = game.players || {};
     const currentPlayer = players[currentPlayerId];
-    const nightStep = game.nightStep || 'killer';
+    const nightStep = game.nightStep || 'everyone-close';
+    const nightStepStartTime = game.nightStepStartTime || Date.now();
+    const actionTime = (game.settings && game.settings.actionTime) || 10;
     
     if (!currentPlayer || !currentPlayer.alive) {
         nightAnnouncement.innerHTML = '<p>You are dead. Close your eyes and wait...</p>';
@@ -630,42 +668,94 @@ function showNightPhase(game) {
         return;
     }
     
-    // Show announcement based on current step
+    // Calculate time remaining
+    const elapsed = (Date.now() - nightStepStartTime) / 1000;
+    let timeRemaining = 0;
     let announcement = '';
     let canAct = false;
+    let showTimer = false;
     
-    if (nightStep === 'killer') {
+    // Handle each step
+    if (nightStep === 'everyone-close') {
+        announcement = '🌙 <strong>Everyone, close your eyes!</strong>';
+        canAct = false;
+        showTimer = false;
+        if (soundEveryoneClose) {
+            soundEveryoneClose.play().catch(e => console.log('Sound play failed:', e));
+        }
+    } else if (nightStep === 'killer-open') {
         announcement = '🌙 <strong>Killers, open your eyes!</strong> Choose someone to kill.';
         canAct = playerRole === 'Killer';
-        if (canAct && soundKiller) {
-            soundKiller.play().catch(e => console.log('Sound play failed:', e));
+        showTimer = true;
+        timeRemaining = Math.max(0, actionTime - elapsed);
+        if (elapsed < 0.5 && soundKillerOpen) {
+            soundKillerOpen.play().catch(e => console.log('Sound play failed:', e));
         }
-    } else if (nightStep === 'healer') {
+    } else if (nightStep === 'killer-close') {
+        announcement = '🌙 <strong>Killers, close your eyes!</strong>';
+        canAct = false;
+        showTimer = false;
+        if (soundKillerClose) {
+            soundKillerClose.play().catch(e => console.log('Sound play failed:', e));
+        }
+    } else if (nightStep === 'healer-open') {
         announcement = '💊 <strong>Healer, open your eyes!</strong> Choose someone to heal.';
         canAct = playerRole === 'Doctor';
-        if (canAct && soundHealer) {
-            soundHealer.play().catch(e => console.log('Sound play failed:', e));
+        showTimer = true;
+        timeRemaining = Math.max(0, actionTime - elapsed);
+        if (elapsed < 0.5 && soundHealerOpen) {
+            soundHealerOpen.play().catch(e => console.log('Sound play failed:', e));
         }
-    } else if (nightStep === 'detective') {
+    } else if (nightStep === 'healer-close') {
+        announcement = '💊 <strong>Healer, close your eyes!</strong>';
+        canAct = false;
+        showTimer = false;
+        if (soundHealerClose) {
+            soundHealerClose.play().catch(e => console.log('Sound play failed:', e));
+        }
+    } else if (nightStep === 'detective-open') {
         announcement = '🔍 <strong>Detective, open your eyes!</strong> Choose someone to investigate.';
         canAct = playerRole === 'Detective';
-        if (canAct && soundDetective) {
-            soundDetective.play().catch(e => console.log('Sound play failed:', e));
+        showTimer = true;
+        timeRemaining = Math.max(0, actionTime - elapsed);
+        if (elapsed < 0.5 && soundDetectiveOpen) {
+            soundDetectiveOpen.play().catch(e => console.log('Sound play failed:', e));
         }
-    } else if (nightStep === 'complete') {
+    } else if (nightStep === 'detective-close') {
+        announcement = '🔍 <strong>Detective, close your eyes!</strong>';
+        canAct = false;
+        showTimer = false;
+        if (soundDetectiveClose) {
+            soundDetectiveClose.play().catch(e => console.log('Sound play failed:', e));
+        }
+    } else if (nightStep === 'everyone-open') {
         announcement = '👁️ <strong>Everyone, open your eyes!</strong> Night is over.';
         canAct = false;
+        showTimer = false;
+        if (soundEveryoneOpen) {
+            soundEveryoneOpen.play().catch(e => console.log('Sound play failed:', e));
+        }
     } else {
-        announcement = '🌙 <strong>Close your eyes!</strong> Waiting for your turn...';
+        announcement = '🌙 <strong>Close your eyes!</strong> Waiting...';
         canAct = false;
+        showTimer = false;
     }
     
-    nightAnnouncement.innerHTML = `<div class="announcement-text">${announcement}</div>`;
+    // Show announcement with timer
+    let announcementHTML = `<div class="announcement-text">${announcement}</div>`;
+    if (showTimer && timeRemaining > 0) {
+        announcementHTML += `<div class="timer-display">Time remaining: <strong>${Math.ceil(timeRemaining)}s</strong></div>`;
+    }
+    nightAnnouncement.innerHTML = announcementHTML;
     
     // Check if already submitted for current step
     const nightActionsData = game.nightActions || {};
-    const stepKey = `${nightStep}_${currentPlayerId}`;
-    const alreadySubmitted = nightActionsData[stepKey];
+    let stepKey = '';
+    if (nightStep === 'killer-open') stepKey = `killer_${currentPlayerId}`;
+    else if (nightStep === 'healer-open') stepKey = `healer_${currentPlayerId}`;
+    else if (nightStep === 'detective-open') stepKey = `detective_${currentPlayerId}`;
+    
+    const alreadySubmitted = stepKey && nightActionsData[stepKey];
     
     if (alreadySubmitted) {
         const action = alreadySubmitted;
@@ -679,16 +769,103 @@ function showNightPhase(game) {
     submitNightActionBtn.style.display = 'none';
     
     // Show actions only if it's this player's turn and they can act
-    if (canAct) {
-        if (playerRole === 'Killer' && nightStep === 'killer') {
+    if (canAct && timeRemaining > 0) {
+        if (playerRole === 'Killer' && nightStep === 'killer-open') {
             showKillerActions(players);
-        } else if (playerRole === 'Doctor' && nightStep === 'healer') {
+        } else if (playerRole === 'Doctor' && nightStep === 'healer-open') {
             showDoctorActions(players);
-        } else if (playerRole === 'Detective' && nightStep === 'detective') {
+        } else if (playerRole === 'Detective' && nightStep === 'detective-open') {
             showDetectiveActions(players);
         }
-    } else {
+    } else if (!canAct) {
         nightActions.innerHTML = '<p>Close your eyes and wait for your turn...</p>';
+    } else if (timeRemaining <= 0) {
+        nightActions.innerHTML = '<p>Time is up! Waiting for next step...</p>';
+    }
+    
+    // Auto-advance steps based on timers
+    checkAndAdvanceNightStep(game, nightStep, nightStepStartTime, actionTime);
+    
+    // Update timer display every second if showing timer
+    if (showTimer && timeRemaining > 0) {
+        setTimeout(() => {
+            const gameRef = ref(database, `games/${GLOBAL_GAME_ID}`);
+            get(gameRef).then(snapshot => {
+                const updatedGame = snapshot.val();
+                if (updatedGame && updatedGame.phase === 'night') {
+                    showNightPhase(updatedGame);
+                }
+            });
+        }, 1000);
+    }
+}
+
+// Check and advance night step based on timers
+async function checkAndAdvanceNightStep(game, nightStep, nightStepStartTime, actionTime) {
+    const elapsed = (Date.now() - nightStepStartTime) / 1000;
+    let shouldAdvance = false;
+    let nextStep = '';
+    
+    if (nightStep === 'everyone-close' && elapsed >= 5) {
+        // After 5 seconds, move to killer open
+        shouldAdvance = true;
+        nextStep = 'killer-open';
+    } else if (nightStep === 'killer-open' && elapsed >= actionTime) {
+        // After action time, move to killer close
+        shouldAdvance = true;
+        nextStep = 'killer-close';
+    } else if (nightStep === 'killer-close' && elapsed >= 3) {
+        // After 3 seconds, move to healer open
+        shouldAdvance = true;
+        nextStep = 'healer-open';
+    } else if (nightStep === 'healer-open' && elapsed >= actionTime) {
+        // After action time, move to healer close
+        shouldAdvance = true;
+        nextStep = 'healer-close';
+    } else if (nightStep === 'healer-close' && elapsed >= 3) {
+        // After 3 seconds, move to detective open
+        shouldAdvance = true;
+        nextStep = 'detective-open';
+    } else if (nightStep === 'detective-open' && elapsed >= actionTime) {
+        // After action time, move to detective close
+        shouldAdvance = true;
+        nextStep = 'detective-close';
+    } else if (nightStep === 'detective-close' && elapsed >= 3) {
+        // After 3 seconds, move to everyone open
+        shouldAdvance = true;
+        nextStep = 'everyone-open';
+    } else if (nightStep === 'everyone-open' && elapsed >= 2) {
+        // After 2 seconds, process night
+        shouldAdvance = false;
+        await processNight(game);
+        return;
+    }
+    
+    if (shouldAdvance) {
+        await advanceNightStep(nextStep);
+    } else {
+        // Set up a check for the next second if we're waiting
+        const timeUntilNext = 
+            nightStep === 'everyone-close' ? 5 - elapsed :
+            nightStep === 'killer-open' ? actionTime - elapsed :
+            nightStep === 'killer-close' ? 3 - elapsed :
+            nightStep === 'healer-open' ? actionTime - elapsed :
+            nightStep === 'healer-close' ? 3 - elapsed :
+            nightStep === 'detective-open' ? actionTime - elapsed :
+            nightStep === 'detective-close' ? 3 - elapsed :
+            nightStep === 'everyone-open' ? 2 - elapsed : 1;
+        
+        if (timeUntilNext > 0 && timeUntilNext <= 1) {
+            setTimeout(() => {
+                const gameRef = ref(database, `games/${GLOBAL_GAME_ID}`);
+                get(gameRef).then(snapshot => {
+                    const updatedGame = snapshot.val();
+                    if (updatedGame && updatedGame.phase === 'night') {
+                        checkAndAdvanceNightStep(updatedGame, updatedGame.nightStep, updatedGame.nightStepStartTime, actionTime);
+                    }
+                });
+            }, timeUntilNext * 1000);
+        }
     }
 }
 
@@ -757,75 +934,32 @@ async function submitNightAction() {
     const gameRef = ref(database, `games/${GLOBAL_GAME_ID}`);
     const snapshot = await get(gameRef);
     const game = snapshot.val();
-    const nightStep = game.nightStep || 'killer';
+    const nightStep = game.nightStep || 'killer-open';
     
-    // Store action with step key
-    const stepKey = `${nightStep}_${currentPlayerId}`;
+    // Determine step key based on current step
+    let stepKey = '';
+    if (nightStep === 'killer-open') {
+        stepKey = `killer_${currentPlayerId}`;
+    } else if (nightStep === 'healer-open') {
+        stepKey = `healer_${currentPlayerId}`;
+    } else if (nightStep === 'detective-open') {
+        stepKey = `detective_${currentPlayerId}`;
+    }
+    
+    if (!stepKey) return;
+    
+    // Store action
     await set(ref(database, `games/${GLOBAL_GAME_ID}/nightActions/${stepKey}`), {
         type: selectedNightAction.type,
         target: selectedNightAction.targetId,
         step: nightStep
     });
     
-    // Check if all players for current step have submitted
+    // Show confirmation
     const players = game.players || {};
-    const nightActionsData = game.nightActions || {};
-    
-    // Get all players who should act in current step
-    let shouldAct = [];
-    if (nightStep === 'killer') {
-        shouldAct = Object.entries(players).filter(([id, p]) => p.alive && p.role === 'Killer');
-    } else if (nightStep === 'healer') {
-        shouldAct = Object.entries(players).filter(([id, p]) => p.alive && p.role === 'Doctor');
-    } else if (nightStep === 'detective') {
-        shouldAct = Object.entries(players).filter(([id, p]) => p.alive && p.role === 'Detective');
-    }
-    
-    // Check if all have submitted (need to check after our update)
-    setTimeout(async () => {
-        const gameRef2 = ref(database, `games/${GLOBAL_GAME_ID}`);
-        const snapshot2 = await get(gameRef2);
-        const game2 = snapshot2.val();
-        const nightActionsData2 = game2.nightActions || {};
-        const nightStep2 = game2.nightStep || 'killer';
-        
-        const allSubmitted = shouldAct.every(([id]) => {
-            const key = `${nightStep2}_${id}`;
-            return nightActionsData2[key];
-        });
-        
-        if (allSubmitted && shouldAct.length > 0) {
-            // Move to next step
-            let nextStep = 'complete';
-            if (nightStep2 === 'killer') {
-                nextStep = 'healer';
-            } else if (nightStep2 === 'healer') {
-                nextStep = 'detective';
-            } else if (nightStep2 === 'detective') {
-                nextStep = 'complete';
-                // All actions done, process night after 2 seconds
-                setTimeout(() => processNight(game2), 2000);
-            }
-            
-            await update(ref(database, `games/${GLOBAL_GAME_ID}`), {
-                nightStep: nextStep
-            });
-            
-            // If moving to next step, wait 5 seconds before showing next action
-            if (nextStep !== 'complete') {
-                setTimeout(() => {
-                    // Trigger update by reading game state
-                    const gameRef3 = ref(database, `games/${GLOBAL_GAME_ID}`);
-                    get(gameRef3).then(snapshot3 => {
-                        const updatedGame = snapshot3.val();
-                        if (updatedGame.phase === 'night') {
-                            showNightPhase(updatedGame);
-                        }
-                    });
-                }, 5000);
-            }
-        }
-    }, 500);
+    const target = selectedNightAction.targetId ? players[selectedNightAction.targetId] : null;
+    nightActions.innerHTML = `<p>You have submitted: <strong>${selectedNightAction.type}</strong> ${target ? `on ${target.name}` : ''}</p>`;
+    submitNightActionBtn.style.display = 'none';
 }
 
 // Process night
@@ -836,12 +970,12 @@ async function processNight(game) {
     
     // Process killer actions (all killers)
     const killerActions = Object.entries(nightActionsData).filter(([key, action]) => 
-        action.step === 'killer' && action.type === 'kill'
+        action.step === 'killer-open' && action.type === 'kill'
     );
     
     // Process doctor actions (all doctors)
     const doctorActions = Object.entries(nightActionsData).filter(([key, action]) => 
-        action.step === 'healer' && action.type === 'heal'
+        action.step === 'healer-open' && action.type === 'heal'
     );
     
     // Get killed targets
@@ -872,7 +1006,7 @@ async function processNight(game) {
     
     // Process detective actions - store privately per detective
     const detectiveActions = Object.entries(nightActionsData).filter(([key, action]) => 
-        action.step === 'detective' && action.type === 'investigate'
+        action.step === 'detective-open' && action.type === 'investigate'
     );
     
     const detectiveResults = {};
@@ -918,7 +1052,7 @@ async function processNight(game) {
     
     updates[`games/${GLOBAL_GAME_ID}/lastNightResult`] = nightResult;
     updates[`games/${GLOBAL_GAME_ID}/nightActions`] = {};
-    updates[`games/${GLOBAL_GAME_ID}/nightStep`] = 'killer'; // Reset for next night
+    updates[`games/${GLOBAL_GAME_ID}/nightStep`] = 'everyone-close'; // Reset for next night
     
     await update(ref(database), updates);
 }
@@ -994,18 +1128,23 @@ function selectVote(targetId, element) {
 async function skipVote() {
     await set(ref(database, `games/${GLOBAL_GAME_ID}/votes/${currentPlayerId}`), 'skip');
     
-    // Check if all alive players voted
-    const gameRef = ref(database, `games/${GLOBAL_GAME_ID}`);
-    const snapshot = await get(gameRef);
-    const game = snapshot.val();
-    const players = game.players || {};
-    const votes = game.votes || {};
-    
-    const alivePlayers = Object.keys(players).filter(id => players[id].alive);
-    
-    if (alivePlayers.length === Object.keys(votes).length) {
-        await processVoting(game);
-    }
+    // Wait a bit for the vote to be saved, then check if all alive players voted
+    setTimeout(async () => {
+        const gameRef = ref(database, `games/${GLOBAL_GAME_ID}`);
+        const snapshot = await get(gameRef);
+        const game = snapshot.val();
+        if (!game) return;
+        
+        const players = game.players || {};
+        const votes = game.votes || {};
+        
+        const alivePlayers = Object.keys(players).filter(id => players[id].alive);
+        
+        // Check if all alive players have voted (including skips)
+        if (alivePlayers.length === Object.keys(votes).length) {
+            await processVoting(game);
+        }
+    }, 500);
 }
 
 // Submit vote
@@ -1014,18 +1153,23 @@ async function submitVote() {
     
     await set(ref(database, `games/${GLOBAL_GAME_ID}/votes/${currentPlayerId}`), selectedVote);
     
-    // Check if all alive players voted
-    const gameRef = ref(database, `games/${GLOBAL_GAME_ID}`);
-    const snapshot = await get(gameRef);
-    const game = snapshot.val();
-    const players = game.players || {};
-    const votes = game.votes || {};
-    
-    const alivePlayers = Object.keys(players).filter(id => players[id].alive);
-    
-    if (alivePlayers.length === Object.keys(votes).length) {
-        await processVoting(game);
-    }
+    // Wait a bit for the vote to be saved, then check if all alive players voted
+    setTimeout(async () => {
+        const gameRef = ref(database, `games/${GLOBAL_GAME_ID}`);
+        const snapshot = await get(gameRef);
+        const game = snapshot.val();
+        if (!game) return;
+        
+        const players = game.players || {};
+        const votes = game.votes || {};
+        
+        const alivePlayers = Object.keys(players).filter(id => players[id].alive);
+        
+        // Check if all alive players have voted
+        if (alivePlayers.length === Object.keys(votes).length) {
+            await processVoting(game);
+        }
+    }, 500);
 }
 
 // Process voting
@@ -1033,36 +1177,45 @@ async function processVoting(game) {
     const players = game.players || {};
     const votes = game.votes || {};
     
-    // Count votes (exclude 'skip')
-    const voteCounts = {};
-    Object.entries(votes).forEach(([voterId, targetId]) => {
-        if (targetId !== 'skip') {
-            voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
-        }
-    });
-    
-    // Find player with most votes
-    let maxVotes = 0;
-    let eliminatedId = null;
-    Object.entries(voteCounts).forEach(([id, count]) => {
-        if (count > maxVotes) {
-            maxVotes = count;
-            eliminatedId = id;
-        }
-    });
+    // Check if everyone skipped
+    const allSkipped = Object.values(votes).every(vote => vote === 'skip');
     
     const updates = {};
     let dayResult = '';
-    const aliveCount = Object.values(players).filter(p => p.alive).length;
-    const majority = Math.ceil(aliveCount / 2);
     
-    // Need majority to eliminate (more than half)
-    if (eliminatedId && maxVotes > majority) {
-        const eliminated = players[eliminatedId];
-        updates[`games/${GLOBAL_GAME_ID}/players/${eliminatedId}/alive`] = false;
-        dayResult = `☀️ Day ${game.dayCount}: ${eliminated.name} was eliminated! They were a ${eliminated.role}.`;
+    if (allSkipped) {
+        // Everyone skipped - no one eliminated
+        dayResult = `☀️ Day ${game.dayCount}: No one was eliminated (everyone skipped voting).`;
     } else {
-        dayResult = `☀️ Day ${game.dayCount}: No one was eliminated (no majority vote).`;
+        // Count votes (exclude 'skip')
+        const voteCounts = {};
+        Object.entries(votes).forEach(([voterId, targetId]) => {
+            if (targetId !== 'skip') {
+                voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
+            }
+        });
+        
+        // Find player with most votes
+        let maxVotes = 0;
+        let eliminatedId = null;
+        Object.entries(voteCounts).forEach(([id, count]) => {
+            if (count > maxVotes) {
+                maxVotes = count;
+                eliminatedId = id;
+            }
+        });
+        
+        const aliveCount = Object.values(players).filter(p => p.alive).length;
+        const majority = Math.ceil(aliveCount / 2);
+        
+        // Need majority to eliminate (more than half)
+        if (eliminatedId && maxVotes > majority) {
+            const eliminated = players[eliminatedId];
+            updates[`games/${GLOBAL_GAME_ID}/players/${eliminatedId}/alive`] = false;
+            dayResult = `☀️ Day ${game.dayCount}: ${eliminated.name} was eliminated! They were a ${eliminated.role}.`;
+        } else {
+            dayResult = `☀️ Day ${game.dayCount}: No one was eliminated (no majority vote).`;
+        }
     }
     
     // Check win conditions
@@ -1084,7 +1237,18 @@ async function processVoting(game) {
         updates[`games/${GLOBAL_GAME_ID}/nightCount`] = (game.nightCount || 0) + 1;
         updates[`games/${GLOBAL_GAME_ID}/nightActions`] = {};
         updates[`games/${GLOBAL_GAME_ID}/votes`] = {};
-        updates[`games/${GLOBAL_GAME_ID}/nightStep`] = 'killer'; // Reset night step
+        updates[`games/${GLOBAL_GAME_ID}/nightStep`] = 'everyone-close'; // Reset night step
+        updates[`games/${GLOBAL_GAME_ID}/nightStepStartTime`] = Date.now();
+        
+        // Play everyone close eyes sound and start sequence
+        if (soundEveryoneClose) {
+            soundEveryoneClose.play().catch(e => console.log('Sound play failed:', e));
+        }
+        
+        // After 5 seconds, move to killer open
+        setTimeout(() => {
+            advanceNightStep('killer-open');
+        }, 5000);
     }
     
     updates[`games/${GLOBAL_GAME_ID}/lastDayResult`] = dayResult;
@@ -1212,9 +1376,16 @@ async function saveAdminSettings() {
         return;
     }
     
+    const actionTime = parseInt(actionTimeInput.value) || 10;
+    if (actionTime < 5 || actionTime > 30) {
+        alert('Action time must be between 5 and 30 seconds');
+        return;
+    }
+    
     try {
         await update(ref(database, `games/${GLOBAL_GAME_ID}/settings`), {
-            killerCount: killerCount
+            killerCount: killerCount,
+            actionTime: actionTime
         });
         
         saveSettingsBtn.textContent = '✓ Saved!';

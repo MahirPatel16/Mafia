@@ -35,6 +35,11 @@
                     <input type="number" id="killerCount" min="1" max="3" value="1">
                     <small>Recommended: 1 killer for 3-6 players, 2 for 7-8, 3 for 9-10</small>
                 </div>
+                <div class="admin-setting">
+                    <label for="actionTime">Action Time (seconds):</label>
+                    <input type="number" id="actionTime" min="5" max="30" value="10">
+                    <small>Time given to each role to perform their action</small>
+                </div>
                 <button id="saveSettingsBtn" class="btn btn-secondary">Save Settings</button>
             </div>
             
@@ -81,8 +86,10 @@
                 <div id="votingSection" class="voting-section">
                     <h3>Vote to Eliminate</h3>
                     <div id="voteOptions" class="vote-options"></div>
-                    <button id="skipVoteBtn" class="btn btn-secondary" style="display: none;">Skip Vote</button>
-                    <button id="submitVoteBtn" class="btn btn-primary" style="display: none;">Submit Vote</button>
+                    <div class="vote-buttons">
+                        <button id="skipVoteBtn" class="btn btn-secondary" style="display: none;">Skip Vote</button>
+                        <button id="submitVoteBtn" class="btn btn-primary" style="display: none;">Submit Vote</button>
+                    </div>
                 </div>
             </div>
 
@@ -116,14 +123,29 @@
     </audio>
     
     <!-- Sound Effects -->
-    <audio id="soundKiller" preload="auto">
-        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIGWi77+efTRAMUKfj8LZjHAY4kdfyzHksBSR3x/DdkEAKFF606euoVRQKRp/g8r5sIQUrgc7y2Yk2CBtou+/nn00QDFCn4/C2YxwGOJHX8sx5LAUkd8fw3ZBAC" type="audio/wav">
+    <audio id="soundEveryoneClose" preload="auto">
+        <source src="audio/everyone-close-eyes.mp3" type="audio/mpeg">
     </audio>
-    <audio id="soundHealer" preload="auto">
-        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIGWi77+efTRAMUKfj8LZjHAY4kdfyzHksBSR3x/DdkEAKFF606euoVRQKRp/g8r5sIQUrgc7y2Yk2CBtou+/nn00QDFCn4/C2YxwGOJHX8sx5LAUkd8fw3ZBAC" type="audio/wav">
+    <audio id="soundKillerOpen" preload="auto">
+        <source src="audio/killer-open-eyes.mp3" type="audio/mpeg">
     </audio>
-    <audio id="soundDetective" preload="auto">
-        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIGWi77+efTRAMUKfj8LZjHAY4kdfyzHksBSR3x/DdkEAKFF606euoVRQKRp/g8r5sIQUrgc7y2Yk2CBtou+/nn00QDFCn4/C2YxwGOJHX8sx5LAUkd8fw3ZBAC" type="audio/wav">
+    <audio id="soundKillerClose" preload="auto">
+        <source src="audio/killer-close-eyes.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="soundHealerOpen" preload="auto">
+        <source src="audio/healer-open-eyes.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="soundHealerClose" preload="auto">
+        <source src="audio/Healer-close-eyes.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="soundDetectiveOpen" preload="auto">
+        <source src="audio/detective-open-eyes.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="soundDetectiveClose" preload="auto">
+        <source src="audio/detective-close-eyes.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="soundEveryoneOpen" preload="auto">
+        <source src="audio/everyone-open-eyes.mp3" type="audio/mpeg">
     </audio>
 
     <!-- Firebase SDK -->

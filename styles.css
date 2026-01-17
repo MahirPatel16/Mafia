@@ -363,6 +363,17 @@ h3 {
     cursor: not-allowed;
 }
 
+.vote-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 15px;
+}
+
+.vote-buttons .btn {
+    min-width: 150px;
+}
+
 /* Players Status */
 .players-status {
     margin-top: 30px;
@@ -435,6 +446,13 @@ h3 {
     font-size: 1.2em;
     font-weight: 600;
     color: #856404;
+}
+
+.timer-display {
+    margin-top: 10px;
+    font-size: 1.1em;
+    color: #667eea;
+    font-weight: 600;
 }
 
 #gameResult {
