@@ -68,6 +68,7 @@
             <!-- Night Phase -->
             <div id="nightPhase" class="phase-container" style="display: none;">
                 <h2>🌙 Night Phase</h2>
+                <div id="nightAnnouncement" class="night-announcement"></div>
                 <div id="nightActions" class="actions-container"></div>
                 <button id="submitNightActionBtn" class="btn btn-primary" style="display: none;">Submit Action</button>
             </div>
@@ -79,6 +80,7 @@
                 <div id="votingSection" class="voting-section">
                     <h3>Vote to Eliminate</h3>
                     <div id="voteOptions" class="vote-options"></div>
+                    <button id="skipVoteBtn" class="btn btn-secondary" style="display: none;">Skip Vote</button>
                     <button id="submitVoteBtn" class="btn btn-primary" style="display: none;">Submit Vote</button>
                 </div>
             </div>
@@ -87,7 +89,15 @@
             <div id="gameOver" class="game-over" style="display: none;">
                 <h2>Game Over</h2>
                 <div id="gameResult"></div>
-                <button id="newGameBtn" class="btn btn-primary">New Game</button>
+                <!-- God View (shown to everyone after game over) -->
+                <div id="godViewGameOver" class="god-view" style="display: none;">
+                    <h2>👑 All Roles Revealed</h2>
+                    <div id="godInfoGameOver" class="god-info"></div>
+                </div>
+                <div class="game-over-actions">
+                    <button id="newGameBtn" class="btn btn-primary">New Game</button>
+                    <button id="homeBtn" class="btn btn-secondary">Home</button>
+                </div>
             </div>
 
             <!-- Players Status -->
@@ -102,6 +112,17 @@
         <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
         <!-- Alternative: Use a local file by placing it in the same folder and using: -->
         <!-- <source src="background-music.mp3" type="audio/mpeg"> -->
+    </audio>
+    
+    <!-- Sound Effects -->
+    <audio id="soundKiller" preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIGWi77+efTRAMUKfj8LZjHAY4kdfyzHksBSR3x/DdkEAKFF606euoVRQKRp/g8r5sIQUrgc7y2Yk2CBtou+/nn00QDFCn4/C2YxwGOJHX8sx5LAUkd8fw3ZBAC" type="audio/wav">
+    </audio>
+    <audio id="soundHealer" preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIGWi77+efTRAMUKfj8LZjHAY4kdfyzHksBSR3x/DdkEAKFF606euoVRQKRp/g8r5sIQUrgc7y2Yk2CBtou+/nn00QDFCn4/C2YxwGOJHX8sx5LAUkd8fw3ZBAC" type="audio/wav">
+    </audio>
+    <audio id="soundDetective" preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIGWi77+efTRAMUKfj8LZjHAY4kdfyzHksBSR3x/DdkEAKFF606euoVRQKRp/g8r5sIQUrgc7y2Yk2CBtou+/nn00QDFCn4/C2YxwGOJHX8sx5LAUkd8fw3ZBAC" type="audio/wav">
     </audio>
 
     <!-- Firebase SDK -->

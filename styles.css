@@ -407,6 +407,36 @@ h3 {
     border-radius: 10px;
 }
 
+.game-over-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.detective-result {
+    margin-top: 15px;
+    padding: 15px;
+    background: #e7f3ff;
+    border-left: 4px solid #667eea;
+    border-radius: 5px;
+    text-align: left;
+}
+
+.night-announcement {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #fff3cd;
+    border-radius: 10px;
+    text-align: center;
+}
+
+.announcement-text {
+    font-size: 1.2em;
+    font-weight: 600;
+    color: #856404;
+}
+
 #gameResult {
     margin: 20px 0;
     padding: 20px;
