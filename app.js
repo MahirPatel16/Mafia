@@ -274,8 +274,10 @@ async function handleJoinGame() {
         const gameRef = ref(database, `games/${GLOBAL_GAME_ID}`);
         const snapshot = await get(gameRef);
         
+        let isFirstPlayer = false;
+        
         if (!snapshot.exists()) {
-            // Create global game
+            // Create global game - this player will be first
             await set(gameRef, {
                 code: GLOBAL_GAME_ID,
                 status: 'lobby',
@@ -285,10 +287,14 @@ async function handleJoinGame() {
                 createdAt: Date.now()
             });
             console.log('Created global game');
+            isFirstPlayer = true;
         } else {
             const game = snapshot.val();
-            // Allow joining if game is over (gameover phase or finished status) or if there are no players
+            // Check current player count BEFORE any resets
             const hasPlayers = game.players && Object.keys(game.players).length > 0;
+            isFirstPlayer = !hasPlayers;
+            
+            // Allow joining if game is over (gameover phase or finished status) or if there are no players
             const isGameOver = game.phase === 'gameover' || game.status === 'finished';
             
             // Check if there are any alive players
@@ -310,13 +316,18 @@ async function handleJoinGame() {
                 return;
             }
             
-            // If game is over, has no alive players, is stuck, or has no players, reset it to lobby
-            if (isGameOver || !hasAlivePlayers || isStuck || !hasPlayers) {
+            // Only reset if game is over, stuck, or has no alive players (but NOT if there are players in lobby)
+            // Don't reset if there are players waiting in lobby (status is 'lobby')
+            if (game.status === 'lobby' && hasPlayers) {
+                // Game is in lobby with players - don't reset, just join
+                console.log('Joining existing lobby');
+            } else if (isGameOver || isStuck || (game.status === 'playing' && !hasAlivePlayers)) {
+                // Only reset if game is finished/stuck or has no alive players in a playing game
                 console.log('Resetting game to lobby. Reason:', {
                     isGameOver,
                     hasAlivePlayers,
                     isStuck,
-                    hasPlayers
+                    status: game.status
                 });
                 await update(gameRef, {
                     status: 'lobby',
@@ -332,6 +343,8 @@ async function handleJoinGame() {
                     lastDayResult: '',
                     winner: null
                 });
+                // After reset, this player is now first
+                isFirstPlayer = true;
             }
         }
         
@@ -339,11 +352,7 @@ async function handleJoinGame() {
         const playersRef = ref(database, `games/${GLOBAL_GAME_ID}/players`);
         currentPlayerId = push(playersRef).key;
         
-        // Check if this is the first player (should be admin)
-        const gameSnapshot = await get(gameRef);
-        const gameData = gameSnapshot.val();
-        const isFirstPlayer = !gameData || Object.keys(gameData.players || {}).length === 0;
-        
+        // Set admin if this is the first player
         if (isFirstPlayer) {
             // First player becomes admin
             await update(gameRef, {
