@@ -3,7 +3,7 @@ import { ref, set, onValue, update, push, remove, get } from 'https://www.gstati
 
 // Game state
 let currentPlayerId = null;
-let gameId = null;
+const GLOBAL_GAME_ID = 'global'; // Single global game
 let playerName = '';
 let playerRole = '';
 let isGod = false;
@@ -13,12 +13,7 @@ const welcomeScreen = document.getElementById('welcomeScreen');
 const lobbyScreen = document.getElementById('lobbyScreen');
 const gameScreen = document.getElementById('gameScreen');
 const playerNameInput = document.getElementById('playerName');
-const gameCodeInput = document.getElementById('gameCodeInput');
 const joinGameBtn = document.getElementById('joinGameBtn');
-const gameCodeDisplay = document.getElementById('gameCodeDisplay');
-const gameCodeSpan = document.getElementById('gameCode');
-const copyCodeBtn = document.getElementById('copyCodeBtn');
-const lobbyGameCode = document.getElementById('lobbyGameCode');
 const playersList = document.getElementById('playersList');
 const playerCount = document.getElementById('playerCount');
 const readyBtn = document.getElementById('readyBtn');
@@ -56,23 +51,8 @@ function init() {
     }
     console.log('Firebase connected successfully');
 
-    // Check if URL has game code and populate input
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlCode = urlParams.get('code');
-    if (urlCode) {
-        gameCodeInput.value = urlCode.toUpperCase();
-        gameCodeSpan.textContent = urlCode.toUpperCase();
-        gameCodeDisplay.style.display = 'block';
-    }
-    
-    // Auto-uppercase game code input
-    gameCodeInput.addEventListener('input', (e) => {
-        e.target.value = e.target.value.toUpperCase();
-    });
-
     // Event listeners
     joinGameBtn.addEventListener('click', handleJoinGame);
-    copyCodeBtn.addEventListener('click', copyGameCode);
     readyBtn.addEventListener('click', toggleReady);
     leaveGameBtn.addEventListener('click', leaveGame);
     submitNightActionBtn.addEventListener('click', submitNightAction);
@@ -85,21 +65,10 @@ function init() {
         }
     });
     
-    gameCodeInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            handleJoinGame();
-        }
-    });
-    
     console.log('Initialization complete');
 }
 
-// Generate game code
-function generateGameCode() {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
-}
-
-// Join or create game
+// Join global game
 async function handleJoinGame() {
     try {
         const name = playerNameInput.value.trim();
@@ -114,67 +83,39 @@ async function handleJoinGame() {
 
         playerName = name;
         
-        // Get code from input field first, then URL parameter, then create new
-        let code = gameCodeInput.value.trim().toUpperCase();
-        if (!code) {
-            code = new URLSearchParams(window.location.search).get('code');
-        }
+        console.log('Joining global game');
 
-        if (!code) {
-            // Create new game
-            code = generateGameCode();
-            gameId = code;
-            const playersRef = ref(database, `games/${code}/players`);
-            currentPlayerId = push(playersRef).key;
-            
-            console.log('Creating new game:', code);
-            
-            await set(ref(database, `games/${code}`), {
-                code: code,
+        // Check if global game exists, create if not
+        const gameRef = ref(database, `games/${GLOBAL_GAME_ID}`);
+        const snapshot = await get(gameRef);
+        
+        if (!snapshot.exists()) {
+            // Create global game
+            await set(gameRef, {
+                code: GLOBAL_GAME_ID,
                 status: 'lobby',
                 players: {},
                 god: null,
                 phase: 'lobby',
                 createdAt: Date.now()
             });
-
-            // Update URL
-            window.history.pushState({}, '', `?code=${code}`);
-            gameCodeSpan.textContent = code;
-            gameCodeInput.value = code; // Also update the input field
-            gameCodeDisplay.style.display = 'block';
+            console.log('Created global game');
         } else {
-            // Join existing game - verify it exists first
-            gameId = code;
-            const gameRef = ref(database, `games/${code}`);
-            const snapshot = await get(gameRef);
-            
-            if (!snapshot.exists()) {
-                alert(`Game code "${code}" not found. Please check the code or create a new game.`);
-                joinGameBtn.disabled = false;
-                joinGameBtn.textContent = 'Join Game';
-                return;
-            }
-            
             const game = snapshot.val();
             if (game.status === 'playing') {
-                alert('This game has already started. Please wait for it to finish or create a new game.');
+                alert('A game is currently in progress. Please wait for it to finish.');
                 joinGameBtn.disabled = false;
                 joinGameBtn.textContent = 'Join Game';
                 return;
             }
-            
-            const playersRef = ref(database, `games/${code}/players`);
-            currentPlayerId = push(playersRef).key;
-            console.log('Joining existing game:', code);
-            
-            // Update URL with game code
-            window.history.pushState({}, '', `?code=${code}`);
         }
-
-        // Add player
+        
+        // Add player to global game
+        const playersRef = ref(database, `games/${GLOBAL_GAME_ID}/players`);
+        currentPlayerId = push(playersRef).key;
+        
         console.log('Adding player:', playerName, 'with ID:', currentPlayerId);
-        await set(ref(database, `games/${gameId}/players/${currentPlayerId}`), {
+        await set(ref(database, `games/${GLOBAL_GAME_ID}/players/${currentPlayerId}`), {
             name: playerName,
             ready: false,
             role: null,
@@ -199,9 +140,9 @@ async function handleJoinGame() {
 
 // Listen to game state
 function listenToGame() {
-    const gameRef = ref(database, `games/${gameId}`);
+    const gameRef = ref(database, `games/${GLOBAL_GAME_ID}`);
     
-    console.log('Listening to game:', gameId);
+    console.log('Listening to global game');
     
     onValue(gameRef, (snapshot) => {
         const game = snapshot.val();
@@ -227,8 +168,6 @@ function listenToGame() {
 // Update lobby
 function updateLobby(game) {
     if (game.status !== 'lobby') return;
-
-    lobbyGameCode.textContent = game.code;
     const players = game.players || {};
     const playerArray = Object.entries(players);
     
@@ -261,7 +200,7 @@ function updateLobby(game) {
 
 // Toggle ready
 async function toggleReady() {
-    const playerRef = ref(database, `games/${gameId}/players/${currentPlayerId}`);
+    const playerRef = ref(database, `games/${GLOBAL_GAME_ID}/players/${currentPlayerId}`);
     const snapshot = await get(playerRef);
     const player = snapshot.val();
     
@@ -288,19 +227,19 @@ async function startGame(game) {
     // Update players with roles
     const updates = {};
     players.forEach(([id, player], index) => {
-        updates[`games/${gameId}/players/${id}/role`] = shuffledRoles[index];
-        updates[`games/${gameId}/players/${id}/alive`] = true;
+        updates[`games/${GLOBAL_GAME_ID}/players/${id}/role`] = shuffledRoles[index];
+        updates[`games/${GLOBAL_GAME_ID}/players/${id}/alive`] = true;
     });
     
-    updates[`games/${gameId}/god`] = godId;
-    updates[`games/${gameId}/status`] = 'playing';
-    updates[`games/${gameId}/phase`] = 'night';
-    updates[`games/${gameId}/nightCount`] = 1;
-    updates[`games/${gameId}/dayCount`] = 0;
-    updates[`games/${gameId}/nightActions`] = {};
-    updates[`games/${gameId}/votes`] = {};
-    updates[`games/${gameId}/lastNightResult`] = '';
-    updates[`games/${gameId}/lastDayResult`] = '';
+    updates[`games/${GLOBAL_GAME_ID}/god`] = godId;
+    updates[`games/${GLOBAL_GAME_ID}/status`] = 'playing';
+    updates[`games/${GLOBAL_GAME_ID}/phase`] = 'night';
+    updates[`games/${GLOBAL_GAME_ID}/nightCount`] = 1;
+    updates[`games/${GLOBAL_GAME_ID}/dayCount`] = 0;
+    updates[`games/${GLOBAL_GAME_ID}/nightActions`] = {};
+    updates[`games/${GLOBAL_GAME_ID}/votes`] = {};
+    updates[`games/${GLOBAL_GAME_ID}/lastNightResult`] = '';
+    updates[`games/${GLOBAL_GAME_ID}/lastDayResult`] = '';
 
     await update(ref(database), updates);
 }
@@ -504,14 +443,14 @@ function selectNightAction(type, targetId, element) {
 async function submitNightAction() {
     if (!selectedNightAction) return;
     
-    await set(ref(database, `games/${gameId}/nightActions/${currentPlayerId}`), {
+    await set(ref(database, `games/${GLOBAL_GAME_ID}/nightActions/${currentPlayerId}`), {
         type: selectedNightAction.type,
         target: selectedNightAction.targetId
     });
     
     // Check if all actions submitted (only god can proceed)
     if (isGod) {
-        const gameRef = ref(database, `games/${gameId}`);
+        const gameRef = ref(database, `games/${GLOBAL_GAME_ID}`);
         const snapshot = await get(gameRef);
         const game = snapshot.val();
         const players = game.players || {};
@@ -552,7 +491,7 @@ async function processNight(game) {
         // Check if doctor saved
         if (!doctorAction || doctorAction[1].target !== targetId) {
             killedPlayer = players[targetId];
-            updates[`games/${gameId}/players/${targetId}/alive`] = false;
+            updates[`games/${GLOBAL_GAME_ID}/players/${targetId}/alive`] = false;
         }
     }
     
@@ -586,20 +525,20 @@ async function processNight(game) {
     const aliveVillagers = alivePlayers.filter(p => p.role !== 'Killer');
     
     if (aliveKillers.length === 0) {
-        updates[`games/${gameId}/phase`] = 'gameover';
-        updates[`games/${gameId}/winner`] = 'Villagers';
+        updates[`games/${GLOBAL_GAME_ID}/phase`] = 'gameover';
+        updates[`games/${GLOBAL_GAME_ID}/winner`] = 'Villagers';
     } else if (aliveKillers.length >= aliveVillagers.length) {
-        updates[`games/${gameId}/phase`] = 'gameover';
-        updates[`games/${gameId}/winner`] = 'Killer';
+        updates[`games/${GLOBAL_GAME_ID}/phase`] = 'gameover';
+        updates[`games/${GLOBAL_GAME_ID}/winner`] = 'Killer';
     } else {
         // Move to day phase
-        updates[`games/${gameId}/phase`] = 'day';
-        updates[`games/${gameId}/dayCount`] = (game.dayCount || 0) + 1;
-        updates[`games/${gameId}/votes`] = {};
+        updates[`games/${GLOBAL_GAME_ID}/phase`] = 'day';
+        updates[`games/${GLOBAL_GAME_ID}/dayCount`] = (game.dayCount || 0) + 1;
+        updates[`games/${GLOBAL_GAME_ID}/votes`] = {};
     }
     
-    updates[`games/${gameId}/lastNightResult`] = nightResult;
-    updates[`games/${gameId}/nightActions`] = {};
+    updates[`games/${GLOBAL_GAME_ID}/lastNightResult`] = nightResult;
+    updates[`games/${GLOBAL_GAME_ID}/nightActions`] = {};
     
     await update(ref(database), updates);
 }
@@ -661,11 +600,11 @@ function selectVote(targetId, element) {
 async function submitVote() {
     if (!selectedVote) return;
     
-    await set(ref(database, `games/${gameId}/votes/${currentPlayerId}`), selectedVote);
+    await set(ref(database, `games/${GLOBAL_GAME_ID}/votes/${currentPlayerId}`), selectedVote);
     
     // Check if all alive players voted (only god can proceed)
     if (isGod) {
-        const gameRef = ref(database, `games/${gameId}`);
+        const gameRef = ref(database, `games/${GLOBAL_GAME_ID}`);
         const snapshot = await get(gameRef);
         const game = snapshot.val();
         const players = game.players || {};
@@ -705,7 +644,7 @@ async function processVoting(game) {
     
     if (eliminatedId && maxVotes > 0) {
         const eliminated = players[eliminatedId];
-        updates[`games/${gameId}/players/${eliminatedId}/alive`] = false;
+        updates[`games/${GLOBAL_GAME_ID}/players/${eliminatedId}/alive`] = false;
         dayResult = `☀️ Day ${game.dayCount}: ${eliminated.name} was eliminated! They were a ${eliminated.role}.`;
     } else {
         dayResult = `☀️ Day ${game.dayCount}: No one was eliminated (tie vote).`;
@@ -717,20 +656,20 @@ async function processVoting(game) {
     const aliveVillagers = alivePlayers.filter(p => p.role !== 'Killer');
     
     if (aliveKillers.length === 0) {
-        updates[`games/${gameId}/phase`] = 'gameover';
-        updates[`games/${gameId}/winner`] = 'Villagers';
+        updates[`games/${GLOBAL_GAME_ID}/phase`] = 'gameover';
+        updates[`games/${GLOBAL_GAME_ID}/winner`] = 'Villagers';
     } else if (aliveKillers.length >= aliveVillagers.length) {
-        updates[`games/${gameId}/phase`] = 'gameover';
-        updates[`games/${gameId}/winner`] = 'Killer';
+        updates[`games/${GLOBAL_GAME_ID}/phase`] = 'gameover';
+        updates[`games/${GLOBAL_GAME_ID}/winner`] = 'Killer';
     } else {
         // Move to next night
-        updates[`games/${gameId}/phase`] = 'night';
-        updates[`games/${gameId}/nightCount`] = (game.nightCount || 0) + 1;
-        updates[`games/${gameId}/nightActions`] = {};
-        updates[`games/${gameId}/votes`] = {};
+        updates[`games/${GLOBAL_GAME_ID}/phase`] = 'night';
+        updates[`games/${GLOBAL_GAME_ID}/nightCount`] = (game.nightCount || 0) + 1;
+        updates[`games/${GLOBAL_GAME_ID}/nightActions`] = {};
+        updates[`games/${GLOBAL_GAME_ID}/votes`] = {};
     }
     
-    updates[`games/${gameId}/lastDayResult`] = dayResult;
+    updates[`games/${GLOBAL_GAME_ID}/lastDayResult`] = dayResult;
     
     await update(ref(database), updates);
 }
@@ -779,31 +718,10 @@ function showScreen(screenName) {
     else if (screenName === 'game') gameScreen.classList.add('active');
 }
 
-// Copy game code
-function copyGameCode() {
-    const code = gameCodeSpan.textContent;
-    const fullUrl = window.location.origin + window.location.pathname + `?code=${code}`;
-    
-    // Try to copy the full URL with code, fallback to just code
-    navigator.clipboard.writeText(fullUrl).then(() => {
-        copyCodeBtn.textContent = '✓ Copied!';
-        copyCodeBtn.style.background = '#28a745';
-        setTimeout(() => {
-            copyCodeBtn.textContent = 'Copy Code';
-            copyCodeBtn.style.background = '';
-        }, 2000);
-    }).catch(() => {
-        // Fallback: copy just the code
-        navigator.clipboard.writeText(code).then(() => {
-            alert('Game code copied: ' + code);
-        });
-    });
-}
-
 // Leave game
 async function leaveGame() {
-    if (currentPlayerId && gameId) {
-        await remove(ref(database, `games/${gameId}/players/${currentPlayerId}`));
+    if (currentPlayerId && GLOBAL_GAME_ID) {
+        await remove(ref(database, `games/${GLOBAL_GAME_ID}/players/${currentPlayerId}`));
     }
     window.location.href = window.location.pathname;
 }
