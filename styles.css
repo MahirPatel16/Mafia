@@ -237,24 +237,28 @@ h3 {
 }
 
 .role-display {
+    position: fixed;
     text-align: center;
-    padding: 20px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 10px;
-    margin-bottom: 30px;
+    padding: 5px 10px;
+    background: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+    border-radius: 5px;
+    font-size: 10px;
+    z-index: 1000;
+    pointer-events: none;
+    border: 1px solid rgba(102, 126, 234, 0.3);
 }
 
 #playerRole {
-    font-size: 1.5em;
+    font-size: 10px;
     text-transform: uppercase;
-    display: block;
-    margin-top: 10px;
+    display: inline;
+    margin: 0;
+    font-weight: 600;
 }
 
 #roleDescription {
-    margin-top: 10px;
-    opacity: 0.9;
+    display: none; /* Hide description */
 }
 
 /* God View */

@@ -540,12 +540,10 @@ async function startGame(game) {
     const roles = assignRoles(players.length, killerCount);
     const shuffledRoles = shuffleArray([...roles]);
     
-    // Start background music
+    // Stop background music when game starts
     if (backgroundMusic) {
-        backgroundMusic.play().catch(e => {
-            console.log('Could not play background music:', e);
-            // Music autoplay might be blocked by browser
-        });
+        backgroundMusic.pause();
+        backgroundMusic.currentTime = 0;
     }
     
     // Assign god (random player)
@@ -627,12 +625,21 @@ function updateGame(game) {
     isGod = game.god === currentPlayerId;
     
     // Update role display - hide during day phase for uniform screen
+    // Show only initials in a small, random position
     if (game.phase === 'day') {
         roleDisplay.style.display = 'none';
     } else {
         roleDisplay.style.display = 'block';
-        playerRoleSpan.textContent = playerRole;
-        roleDescription.textContent = getRoleDescription(playerRole);
+        // Show only initials (first letter of each word)
+        const initials = playerRole.split(' ').map(word => word[0]).join('');
+        playerRoleSpan.textContent = initials;
+        roleDescription.style.display = 'none'; // Hide description
+        // Position randomly
+        const randomTop = Math.random() * 80 + 10; // 10-90%
+        const randomLeft = Math.random() * 80 + 10; // 10-90%
+        roleDisplay.style.top = randomTop + '%';
+        roleDisplay.style.left = randomLeft + '%';
+        roleDisplay.style.position = 'fixed';
     }
     
     // Hide god view during game (will show after game over)
@@ -835,21 +842,25 @@ function showNightPhase(game) {
         nightActions.innerHTML = '<p>Time is up! Waiting for next step...</p>';
     }
     
-    // Auto-advance steps based on timers
+    // Auto-advance steps based on timers - call this continuously
     checkAndAdvanceNightStep(game, nightStep, nightStepStartTime, actionTime);
     
-    // Update timer display every second if showing timer
-    if (showTimer && timeRemaining > 0) {
-        setTimeout(() => {
-            const gameRef = ref(database, `games/${GLOBAL_GAME_ID}`);
-            get(gameRef).then(snapshot => {
-                const updatedGame = snapshot.val();
-                if (updatedGame && updatedGame.phase === 'night') {
-                    showNightPhase(updatedGame);
-                }
-            });
-        }, 1000);
-    }
+    // Update timer display and check progression every second
+    setTimeout(() => {
+        const gameRef = ref(database, `games/${GLOBAL_GAME_ID}`);
+        get(gameRef).then(snapshot => {
+            const updatedGame = snapshot.val();
+            if (updatedGame && updatedGame.phase === 'night') {
+                // Re-check and advance if needed
+                const currentStep = updatedGame.nightStep || 'everyone-close';
+                const stepStartTime = updatedGame.nightStepStartTime || Date.now();
+                const actionTimeSetting = (updatedGame.settings && updatedGame.settings.actionTime) || 10;
+                checkAndAdvanceNightStep(updatedGame, currentStep, stepStartTime, actionTimeSetting);
+                // Update display
+                showNightPhase(updatedGame);
+            }
+        });
+    }, 1000);
 }
 
 // Check and advance night step based on timers
@@ -895,6 +906,14 @@ async function checkAndAdvanceNightStep(game, nightStep, nightStepStartTime, act
     
     if (shouldAdvance) {
         await advanceNightStep(nextStep);
+        // After advancing, trigger update for all clients
+        const gameRef = ref(database, `games/${GLOBAL_GAME_ID}`);
+        get(gameRef).then(snapshot => {
+            const updatedGame = snapshot.val();
+            if (updatedGame && updatedGame.phase === 'night') {
+                // This will trigger the listener and update all clients
+            }
+        });
     } else {
         // Set up a check for the next second if we're waiting
         const timeUntilNext = 
@@ -907,16 +926,21 @@ async function checkAndAdvanceNightStep(game, nightStep, nightStepStartTime, act
             nightStep === 'detective-close' ? 3 - elapsed :
             nightStep === 'everyone-open' ? 2 - elapsed : 1;
         
-        if (timeUntilNext > 0 && timeUntilNext <= 1) {
+        // Always check again in 1 second if we haven't advanced yet
+        if (timeUntilNext > 0) {
+            const checkDelay = Math.min(1000, timeUntilNext * 1000);
             setTimeout(() => {
                 const gameRef = ref(database, `games/${GLOBAL_GAME_ID}`);
                 get(gameRef).then(snapshot => {
                     const updatedGame = snapshot.val();
                     if (updatedGame && updatedGame.phase === 'night') {
-                        checkAndAdvanceNightStep(updatedGame, updatedGame.nightStep, updatedGame.nightStepStartTime, actionTime);
+                        const currentStep = updatedGame.nightStep || 'everyone-close';
+                        const stepStartTime = updatedGame.nightStepStartTime || Date.now();
+                        const actionTimeSetting = (updatedGame.settings && updatedGame.settings.actionTime) || 10;
+                        checkAndAdvanceNightStep(updatedGame, currentStep, stepStartTime, actionTimeSetting);
                     }
                 });
-            }, timeUntilNext * 1000);
+            }, checkDelay);
         }
     }
 }
@@ -938,13 +962,14 @@ function showKillerActions(players) {
 
 // Show doctor actions
 function showDoctorActions(players) {
-    const alivePlayers = Object.entries(players).filter(([id, p]) => p.alive && id !== currentPlayerId);
+    // Include all alive players (including self - healer can heal themselves)
+    const alivePlayers = Object.entries(players).filter(([id, p]) => p.alive);
     
     nightActions.innerHTML = '<h3>Choose a player to heal:</h3>';
     alivePlayers.forEach(([id, player]) => {
         const option = document.createElement('div');
         option.className = 'action-item';
-        option.textContent = player.name;
+        option.textContent = id === currentPlayerId ? `${player.name} (You)` : player.name;
         option.dataset.targetId = id;
         option.addEventListener('click', () => selectNightAction('heal', id, option));
         nightActions.appendChild(option);
